@@ -1,7 +1,6 @@
 # Copyright 2021 Tsinghua SPMI Lab, Author: Hong Liu
 from re import match
 from turtle import width
-from typing import Sequence
 from config import global_config as cfg
 from eval import MultiWozEvaluator, get_richness
 from reader import MultiWozReader
@@ -12,12 +11,8 @@ import torch
 import numpy as np
 from mwzeval.metrics import Evaluator
 from matplotlib import pyplot as plt
-from matplotlib import cm
-from matplotlib import axes
 import copy, re
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from significance_test import matched_pair, McNemar
-from session import turn_level_session
 from collections import Counter
 stopwords = ['and','are','as','at','be','been','but','by', 'for','however','if', 
              'not','of','on','or','so','the','there','was','were','whatever','whether','would']

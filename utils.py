@@ -7,6 +7,78 @@ import transformers
 import ontology
 import torch
 
+def prepare_for_std_eval(path=None, data=None):
+    if path:
+        data=json.load(open(path, 'r', encoding='utf-8'))
+    new_data={}
+    dials=pack_dial(data)
+    for dial_id in dials:
+        new_data[dial_id]=[]
+        dial=dials[dial_id]
+        for turn in dial:
+            if turn['user']=='':
+                continue
+            entry={}
+            entry['response']=turn['resp_gen']
+            entry['state']=bspan_to_constraint_dict(turn['bspn_gen'])
+            new_data[dial_id].append(entry)
+    if path:
+        new_path=path[:-5]+'std.json'
+        json.dump(new_data, open(new_path, 'w'), indent=2)
+    return new_data
+
+def bspan_to_constraint_dict(bspan, bspn_mode='bspn'):
+    bspan = bspan.split() if isinstance(bspan, str) else bspan
+    constraint_dict = {}
+    domain = None
+    conslen = len(bspan)
+    for idx, cons in enumerate(bspan):
+        if cons == '<eos_b>':
+            break
+        if '[' in cons:
+            if cons[1:-1] not in ontology.all_domains:
+                continue
+            domain = cons[1:-1]
+        elif cons in ontology.get_slot:
+            if domain is None:
+                continue
+            if cons == 'people':
+                try:
+                    ns = bspan[idx+1]
+                    if ns == "'s":
+                        continue
+                except:
+                    continue
+            if not constraint_dict.get(domain):
+                constraint_dict[domain] = {}
+            if bspn_mode == 'bsdx':
+                constraint_dict[domain][cons] = 1
+                continue
+            vidx = idx+1
+            if vidx == conslen:
+                break
+            vt_collect = []
+            vt = bspan[vidx]
+            while vidx < conslen and vt != '<eos_b>' and '[' not in vt and vt not in ontology.get_slot:
+                vt_collect.append(vt)
+                vidx += 1
+                if vidx == conslen:
+                    break
+                vt = bspan[vidx]
+            if vt_collect:
+                constraint_dict[domain][cons] = ' '.join(vt_collect)
+
+    return constraint_dict
+
+def pack_dial(data):
+    dials = {}
+    for turn in data:
+        dial_id = turn['dial_id']
+        if dial_id not in dials:
+            dials[dial_id] = []
+        dials[dial_id].append(turn)
+    return dials
+
 def modified_encode(tokenizer, text):
     if int(transformers.__version__[0])>=3:
         if isinstance(text, str):

@@ -3,12 +3,11 @@
 from transformers.optimization import AdamW, get_linear_schedule_with_warmup
 from transformers import GPT2Tokenizer, GPT2LMHeadModel
 from eval import MultiWozEvaluator, compute_jacc
-from reader import MultiWozReader, train_collate_fn, test_collate_fn
+from reader import MultiWozReader
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
-from analyze_result import prepare_for_std_eval
+from utils import prepare_for_std_eval
 from mwzeval.metrics import Evaluator
 
 import os

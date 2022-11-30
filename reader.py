@@ -1,4 +1,3 @@
-from lib2to3.pgen2 import token
 from xml import dom
 import numpy as np
 import os
@@ -12,7 +11,6 @@ import torch
 from copy import deepcopy
 from collections import OrderedDict
 from db_ops import MultiWozDB
-from torch.utils.data import Dataset, DataLoader
 import transformers
 from config import global_config as cfg
 #from config21 import global_config as cfg
@@ -188,10 +186,6 @@ class _ReaderBase(object):
         dial = name_to_set[set_name]
         if data:
             dial=data
-        if cfg.low_resource and set_name == 'train':
-            # dial = random.sample(dial, int(len(dial)*0.01))
-            dial = random.sample(dial, 100)
-            print('Low Resource setting, finetuning size: {}'.format(len(dial)))
         turn_bucket = self._bucket_by_turn(dial)
         # self._shuffle_turn_bucket(turn_bucket)
         all_batches = []
@@ -315,8 +309,6 @@ class MultiWozReader(_ReaderBase):
         self.add_sepcial_tokens()
 
         self.domain_files = json.loads(open(cfg.domain_file_path, 'r').read())
-        self.slot_value_set = json.loads(
-            open(cfg.slot_value_set_path, 'r').read())
         if cfg.multi_acts_training:
             self.multi_acts = json.loads(open(cfg.multi_acts_path, 'r').read())
         
@@ -389,10 +381,6 @@ class MultiWozReader(_ReaderBase):
                 if cfg.delex_as_damd:
                     special_tokens.append(word)
         special_tokens.extend(ontology.special_tokens)
-        
-        if cfg.train_us:
-            #special_tokens.extend(['[book]','[fail_book]','[fail_info]','[pre_invalid]','[invalid]','<sos_g>','<eos_g>','<sos_ua>','<eos_ua>'])
-            special_tokens.extend(['<sos_g>','<eos_g>','<sos_ua>','<eos_ua>'])
         special_tokens_dict = {'additional_special_tokens': special_tokens}
         self.tokenizer.add_special_tokens(special_tokens_dict)
         print('Added special tokens to gpt tokenizer.')
@@ -415,10 +403,7 @@ class MultiWozReader(_ReaderBase):
         """
         load processed data and encode, or load already encoded data
         """
-        if cfg.train_us:
-            encoded_file = os.path.join(cfg.data_path, 'encoded_us_data.json')
-        else:
-            encoded_file = os.path.join(cfg.data_path, 'encoded_data.json')
+        encoded_file = os.path.join(cfg.data_path, 'encoded_data.json')
         
         data_path='data/multi-woz-2.1-processed/data_for_rl.json'
         self.data = json.loads(open(data_path, 'r', encoding='utf-8').read().lower())
@@ -432,30 +417,29 @@ class MultiWozReader(_ReaderBase):
                 else:
                     self.train_list.append(fn)
         print('Reading data from {}'.format(data_path))
-        if not cfg.rl_train: # encode data
-            if os.path.exists(encoded_file):
-                print('Reading encoded data from {}'.format(encoded_file))
-                encoded_data = json.loads(open(encoded_file, 'r', encoding='utf-8').read())
-                self.train=[dial for dial in encoded_data['train'] if dial[0]['dial_id'] in self.train_list]
-                self.dev = [dial for dial in encoded_data['dev'] if dial[0]['dial_id'] in self.dev_list]
-                self.test = [dial for dial in encoded_data['test'] if dial[0]['dial_id'] in self.test_list]
-            else:
-                print('Encoding data now and save the encoded data in {}'.format(encoded_file))
-                self.train, self.dev, self.test = [], [], []
-                for fn, dial in self.data.items():
-                    if '.json' in fn:
-                        fn = fn.replace('.json', '')
-                    if fn in self.dev_list:
-                        self.dev.append(self._get_encoded_data(fn, dial))
-                    elif fn in self.test_list:
-                        self.test.append(self._get_encoded_data(fn, dial))
-                    elif fn in self.train_list:
-                        self.train.append(self._get_encoded_data(fn, dial))
-                
-                # save encoded data
-                encoded_data = {'train': self.train, 'dev': self.dev, 'test': self.test}
-                json.dump(encoded_data, open(encoded_file, 'w'), indent=2)
-                print('Encoded file saved in %s'%encoded_file)
+        if os.path.exists(encoded_file):
+            print('Reading encoded data from {}'.format(encoded_file))
+            encoded_data = json.loads(open(encoded_file, 'r', encoding='utf-8').read())
+            self.train=[dial for dial in encoded_data['train'] if dial[0]['dial_id'] in self.train_list]
+            self.dev = [dial for dial in encoded_data['dev'] if dial[0]['dial_id'] in self.dev_list]
+            self.test = [dial for dial in encoded_data['test'] if dial[0]['dial_id'] in self.test_list]
+        else:
+            print('Encoding data now and save the encoded data in {}'.format(encoded_file))
+            self.train, self.dev, self.test = [], [], []
+            for fn, dial in self.data.items():
+                if '.json' in fn:
+                    fn = fn.replace('.json', '')
+                if fn in self.dev_list:
+                    self.dev.append(self._get_encoded_data(fn, dial))
+                elif fn in self.test_list:
+                    self.test.append(self._get_encoded_data(fn, dial))
+                elif fn in self.train_list:
+                    self.train.append(self._get_encoded_data(fn, dial))
+            
+            # save encoded data
+            encoded_data = {'train': self.train, 'dev': self.dev, 'test': self.test}
+            json.dump(encoded_data, open(encoded_file, 'w'), indent=2)
+            print('Encoded file saved in %s'%encoded_file)
 
 
         random.shuffle(self.train)
@@ -1013,11 +997,11 @@ class MultiWozReader(_ReaderBase):
         if side=='sys':
             if first_turn:
                 if mode=='oracle':
-                    bspn_batch=turn_batch['bspn-ex'] if cfg.sys_nlu else turn_batch['bspn']
+                    bspn_batch=turn_batch['bspn']
                     batch_zipped = zip(turn_batch['user'], bspn_batch, 
                         turn_batch['db'], turn_batch['aspn'], turn_batch['resp'])
                 else:
-                    bspn_batch=turn_batch['bspn-ex_gen'] if cfg.sys_nlu else turn_batch['bspn_gen']
+                    bspn_batch=turn_batch['bspn_gen']
                     batch_zipped=zip(turn_batch['user'], bspn_batch, 
                         turn_batch['db_gen'], turn_batch['aspn_gen'], turn_batch['resp_gen'])
                     
@@ -1040,11 +1024,11 @@ class MultiWozReader(_ReaderBase):
                         seg_contexts.append(seg_context)
             else:
                 if mode=='oracle':
-                    bspn_batch=turn_batch['bspn-ex'] if cfg.sys_nlu else turn_batch['bspn']
+                    bspn_batch=turn_batch['bspn']
                     batch_zipped = zip(pv_batch,turn_batch['user'], bspn_batch, 
                         turn_batch['db'], turn_batch['aspn'], turn_batch['resp'])
                 else:
-                    bspn_batch=turn_batch['bspn-ex_gen'] if cfg.sys_nlu else turn_batch['bspn_gen']
+                    bspn_batch=turn_batch['bspn_gen']
                     batch_zipped = zip(pv_batch,turn_batch['user'], bspn_batch, 
                         turn_batch['db_gen'], turn_batch['aspn_gen'], turn_batch['resp_gen'])
                 for ur, u, b, db, a, r in batch_zipped:
