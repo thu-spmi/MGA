@@ -14,8 +14,7 @@ Besides, you need to install the [standard evaluation repository](https://github
 The data preprocessing of MultiWOZ2.1 is based on the data preprocessing of [DAMD](https://github.com/thu-spmi/damd-multiwoz). For convenience, we provide preprocessed training data, database files and random generated testing goals in the format of `.zip` file. Execute following commands to unzip them
 ```
 unzip db.zip -d ./db/
-cd ../data/multi-woz-2.1-processed
-unzip data.zip -d ./
+unzip ./data/multi-woz-2.1-processed/data.zip -d ./data/multi-woz-2.1-processed/
 ```
 ## Full Supervised Training
 To train a MGA dialog system (GPT-2 backbone) in a supervised manner on the whole training set, run
